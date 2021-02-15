@@ -1,5 +1,7 @@
 #
-#   Makefile for BTREE
+#   module  : CMakeLists.txt
+#   version : 1.3
+#   date    : 02/15/21
 #
 cmake_minimum_required(VERSION 3.0)
 project(btree VERSION 1.0)

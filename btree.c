@@ -1,6 +1,6 @@
 /*
     module  : btree.c
-    version : 1.5
+    version : 1.7
     date    : 02/15/21
 */
 #include <stdio.h>
@@ -9,14 +9,19 @@
 #include "btree.h"
 #include "gc.h"
 
-#define max(a, b)	((a) < (b) ? (b) : (a))
+#define INVALID		255
+/*	#define FLAG_ROOT	*/
 
 node_t *btree_new_node(void)
 {
+    int i;
     node_t *x;
 
     x = GC_malloc_atomic(sizeof(node_t));
     assert(x);
+    for (i = 0; i <= FULL; i++)
+	x->ptr[i] = INVALID;
+    x->offset = INVALID;
     return x;
 }
 
@@ -39,9 +44,9 @@ void btree_disk_write(FILE *fp, node_t *x)
 {
     int rv;
 
-    if (x->offset == -1)
+    if (!x->offset)
 	rewind(fp);
-    else if (x->offset) {
+    else if (x->offset != INVALID) {
 	rv = fseek(fp, x->offset * SIZE, 0);
 	assert(!rv);
     } else {
@@ -67,7 +72,7 @@ node_t *btree_search(FILE *fp, node_t *x, int k, int *pos)
     for (;;) {
 	if (btree_locate(x, k, pos))
 	    return x;
-	if (!x->ptr[0])
+	if (x->ptr[0] == INVALID)
 	    return 0;
 	x = btree_disk_read(fp, x->ptr[*pos]);
     }
@@ -102,7 +107,10 @@ void Init(FILE **fp, node_t **root)
 	btree_create(*fp, root);
     } else
 	btree_read_root(*fp, root);
-    (*root)->offset = -1;
+    (*root)->offset = 0;
+#ifdef FLAG_ROOT
+    (*root)->root = 1;
+#endif
 }
 
 void btree_split_child(FILE *fp, node_t *x, int i, node_t *y)
@@ -114,7 +122,7 @@ void btree_split_child(FILE *fp, node_t *x, int i, node_t *y)
     z->n = y->n = MIN;
     for (j = 0; j < MIN; j++)
 	z->key[j] = y->key[j + T];
-    if (y->ptr[0])
+    if (y->ptr[0] != INVALID)
 	for (j = 0; j < T; j++)
 	    z->ptr[j] = y->ptr[j + T];
     x->ptr[x->n + 1] = x->ptr[x->n];
@@ -125,9 +133,9 @@ void btree_split_child(FILE *fp, node_t *x, int i, node_t *y)
     x->key[i] = y->key[MIN];
     x->n++;
     btree_disk_write(fp, y);
-    x->ptr[i] = max(y->offset, 0);
+    x->ptr[i] = y->offset;
     btree_disk_write(fp, z);
-    x->ptr[i + 1] = max(z->offset, 0);
+    x->ptr[i + 1] = z->offset;
     btree_disk_write(fp, x);
 }
 
@@ -139,7 +147,7 @@ int btree_insert_nonfull(FILE *fp, node_t *x, int k)
     for (;;) {
 	if (btree_locate(x, k, &i))
 	    return 0;
-	if (!x->ptr[0]) {
+	if (x->ptr[0] == INVALID) {
 	    for (j = x->n++; j > i; j--)
 		x->key[j] = x->key[j - 1];
 	    x->key[i] = k;
@@ -159,13 +167,20 @@ int btree_insert_nonfull(FILE *fp, node_t *x, int k)
 
 int btree_insert(FILE *fp, node_t **root, int k)
 {
-    node_t *new_root, *old_root;
+    node_t *old_root;
 
     if ((*root)->n == FULL) {
 	old_root = *root;
-	new_root = btree_new_node();
-	new_root->offset = -1;
-	btree_split_child(fp, *root = new_root, 0, old_root);
+	old_root->offset = INVALID;
+#ifdef FLAG_ROOT
+	old_root->root = 0;
+#endif
+	*root = btree_new_node();
+	(*root)->offset = 0;
+#ifdef FLAG_ROOT
+	(*root)->root = 1;
+#endif
+	btree_split_child(fp, *root, 0, old_root);
     }
     return btree_insert_nonfull(fp, *root, k);
 }
@@ -181,7 +196,7 @@ void PrintTree(FILE *fp, node_t *x, int level)
 	    printf("%d ", x->key[i]);
 	putchar('\n');
 	for (i = 0; i <= x->n; i++)
-	    if (x->ptr[i])
+	    if (x->ptr[i] != INVALID)
 		PrintTree(fp, btree_disk_read(fp, x->ptr[i]), level + 1);
     }
 }
@@ -284,7 +299,7 @@ void btree_copy_in_predecessor(FILE *fp, node_t *x, int pos)
     node_t *y;
 
     y = btree_disk_read(fp, x->ptr[pos]);
-    while (y->ptr[y->n])
+    while (y->ptr[y->n] != INVALID)
 	y = btree_disk_read(fp, y->ptr[y->n]);
     x->key[pos] = y->key[y->n - 1];
     btree_disk_write(fp, x);
@@ -380,14 +395,14 @@ int btree_deleting(FILE *fp, node_t *x, int k)
     int rv, pos;
 
     if ((rv = btree_locate(x, k, &pos)) == 1)
-	if (x->ptr[pos]) {
+	if (x->ptr[pos] != INVALID) {
 	    btree_copy_in_predecessor(fp, x, pos);
 	    btree_deleting(fp, btree_disk_read(fp, x->ptr[pos]), x->key[pos]);
 	} else
 	    btree_delete_from_leaf(fp, x, pos);
-    else if (x->ptr[pos])
+    else if (x->ptr[pos] != INVALID)
 	rv = btree_deleting(fp, btree_disk_read(fp, x->ptr[pos]), k);
-    if (x->ptr[pos])
+    if (x->ptr[pos] != INVALID)
 	if (btree_disk_read(fp, x->ptr[pos])->n < MIN)
 	    btree_restore(fp, x, pos);
     return rv;
@@ -399,14 +414,17 @@ int btree_delete(FILE *fp, node_t **root, int k)
     node_t *new_root;
 
     rv = btree_deleting(fp, *root, k);
-    if (*root && !(*root)->n) {
+    if (*root && !(*root)->n && (*root)->ptr[0] != INVALID) {
 	new_root = btree_disk_read(fp, (*root)->ptr[0]);
 	k = new_root->n;
 	new_root->n = 0;
 	btree_disk_write(fp, new_root);
-	new_root->offset = -1;
 	new_root->n = k;
 	*root = new_root;
+	(*root)->offset = 0;
+#ifdef FLAG_ROOT
+	(*root)->root = 1;
+#endif
     }
     return rv;
 }
