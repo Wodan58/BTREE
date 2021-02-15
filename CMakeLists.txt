@@ -10,17 +10,17 @@ else()
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 --coverage -fprofile-arcs -ftest-coverage") # debug, no optimisation
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage") # enabling coverage
 endif()
-add_executable(gtree gtree.c)
-add_executable(btree btree.c)
+add_executable(gtree gtree.c rand.c)
+add_executable(btree btree.c gc.c)
 add_custom_target(demo01.txt ALL
-                  DEPENDS gtree btree
-                  COMMAND gtree i >t
-		  COMMAND btree <t)
+		   DEPENDS gtree btree
+		   COMMAND gtree i >t
+		   COMMAND btree <t)
 add_custom_target(demo02.txt ALL
-                  DEPENDS gtree btree demo01.txt
-                  COMMAND gtree s >t
+		  DEPENDS gtree btree demo01.txt
+		  COMMAND gtree s >t
 		  COMMAND btree <t)
 add_custom_target(demo03.txt ALL
-                  DEPENDS gtree btree demo02.txt
-                  COMMAND gtree d >t
+		  DEPENDS gtree btree demo02.txt
+		  COMMAND gtree d >t
 		  COMMAND btree <t)
