@@ -1,10 +1,17 @@
 /*
     module  : gc.h
-    version : 1.7
-    date    : 08/11/20
+    version : 1.8
+    date    : 02/24/21
 */
 #ifndef GC_H
 #define GC_H
+
+#define USE_GC_MALLOC_ATOMIC
+/*
+#define USE_GC_MALLOC
+#define USE_GC_REALLOC
+#define USE_GC_STRDUP
+*/
 
 void GC_init(void *ptr);
 void GC_gcollect(void);
