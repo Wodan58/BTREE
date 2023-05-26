@@ -1,12 +1,10 @@
 /*
     module  : gtree.c
-    version : 1.3
-    date    : 02/15/21
+    version : 1.4
+    date    : 05/26/23
 */
 #include <stdio.h>
 #include <stdlib.h>
-
-int my_rand(void);
 
 int main(int argc, char *argv[])
 {
@@ -15,9 +13,9 @@ int main(int argc, char *argv[])
 
     if (argc > 1)
 	mode = *argv[1];
-    my_rand();
+    rand();
     for (i = 0; i < 100; i++)
-	printf("%c %d\n", mode, (unsigned char)my_rand());
+	printf("%c %d\n", mode, (unsigned char)rand());
     if (mode == 's')
 	printf("s 0\n");
     printf("q\n");

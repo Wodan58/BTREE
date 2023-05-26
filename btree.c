@@ -1,16 +1,14 @@
 /*
     module  : btree.c
-    version : 1.7
-    date    : 02/15/21
+    version : 1.9
+    date    : 05/26/23
 */
 #include <stdio.h>
-#include <stdlib.h>
 #include <assert.h>
 #include "btree.h"
 #include "gc.h"
 
-#define INVALID		255
-/*	#define FLAG_ROOT	*/
+#define INVALID		(unsigned)-1
 
 node_t *btree_new_node(void)
 {
@@ -32,7 +30,7 @@ node_t *btree_disk_read(FILE *fp, int ptr)
     size_t count;
 
     x = btree_new_node();
-    rv = fseek(fp, (x->offset = ptr) * SIZE, 0);
+    rv = fseek(fp, x->offset = ptr, 0);
     assert(!rv);
     count = fread(x, SIZE, 1, fp);
     assert(count);
@@ -47,12 +45,12 @@ void btree_disk_write(FILE *fp, node_t *x)
     if (!x->offset)
 	rewind(fp);
     else if (x->offset != INVALID) {
-	rv = fseek(fp, x->offset * SIZE, 0);
+	rv = fseek(fp, x->offset, 0);
 	assert(!rv);
     } else {
 	rv = fseek(fp, 0, SEEK_END);
 	assert(!rv);
-	x->offset = ftell(fp) / SIZE;
+	x->offset = ftell(fp);
     }
     fwrite(x, SIZE, 1, fp);
 }
@@ -108,9 +106,6 @@ void Init(FILE **fp, node_t **root)
     } else
 	btree_read_root(*fp, root);
     (*root)->offset = 0;
-#ifdef FLAG_ROOT
-    (*root)->root = 1;
-#endif
 }
 
 void btree_split_child(FILE *fp, node_t *x, int i, node_t *y)
@@ -172,14 +167,8 @@ int btree_insert(FILE *fp, node_t **root, int k)
     if ((*root)->n == FULL) {
 	old_root = *root;
 	old_root->offset = INVALID;
-#ifdef FLAG_ROOT
-	old_root->root = 0;
-#endif
 	*root = btree_new_node();
 	(*root)->offset = 0;
-#ifdef FLAG_ROOT
-	(*root)->root = 1;
-#endif
 	btree_split_child(fp, *root, 0, old_root);
     }
     return btree_insert_nonfull(fp, *root, k);
@@ -282,8 +271,7 @@ int main(int argc, char *argv[])
     int (* volatile m)(int, char **) = start_main;
 
     setbuf(stdout, 0);
-    printf("node: %d\n", (int)sizeof(node_t));
-    GC_init(&argc);
+    GC_init(&argc, 0);
     return (*m)(argc, argv);
 }
 
@@ -422,9 +410,6 @@ int btree_delete(FILE *fp, node_t **root, int k)
 	new_root->n = k;
 	*root = new_root;
 	(*root)->offset = 0;
-#ifdef FLAG_ROOT
-	(*root)->root = 1;
-#endif
     }
     return rv;
 }

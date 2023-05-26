@@ -1,11 +1,11 @@
 t
 gtree
 btree
-btree.c.gcov
+*.gcov
 btree.dat
-btree.gcda
-btree.gcno
-btree.o
+*.gcda
+*.gcno
+*.o
 CMakeCache.txt
 CMakeFiles
 cmake_install.cmake
