@@ -1,7 +1,7 @@
 /*
     module  : btree.c
-    version : 1.9
-    date    : 05/26/23
+    version : 1.10
+    date    : 09/05/23
 */
 #include <stdio.h>
 #include <assert.h>
@@ -9,6 +9,8 @@
 #include "gc.h"
 
 #define INVALID		(unsigned)-1
+
+char *bottom_of_stack;	/* global variable */
 
 node_t *btree_new_node(void)
 {
@@ -271,7 +273,8 @@ int main(int argc, char *argv[])
     int (* volatile m)(int, char **) = start_main;
 
     setbuf(stdout, 0);
-    GC_init(&argc, 0);
+    bottom_of_stack = &argc;
+    GC_INIT();
     return (*m)(argc, argv);
 }
 
