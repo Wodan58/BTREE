@@ -1,12 +1,1 @@
-t
-gtree
-btree
-*.gcov
-btree.dat
-*.gcda
-*.gcno
-*.o
-CMakeCache.txt
-CMakeFiles
-cmake_install.cmake
-Makefile
+build

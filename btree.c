@@ -1,14 +1,18 @@
 /*
     module  : btree.c
-    version : 1.10
-    date    : 09/05/23
+    version : 1.12
+    date    : 09/24/24
 */
 #include <stdio.h>
+#include <stdlib.h>
 #include <assert.h>
 #include "btree.h"
 #include "gc.h"
 
-#define INVALID		(unsigned)-1
+#if 0
+#define PRINTING
+#endif
+#define INVALID		-1
 
 char *bottom_of_stack;	/* global variable */
 
@@ -57,6 +61,9 @@ void btree_disk_write(FILE *fp, node_t *x)
     fwrite(x, SIZE, 1, fp);
 }
 
+/*
+ * locate - see if the key is present.
+ */
 int btree_locate(node_t *x, int k, int *pos)
 {
     int i;
@@ -81,7 +88,7 @@ node_t *btree_search(FILE *fp, node_t *x, int k, int *pos)
 void btree_create(FILE *fp, node_t **root)
 {
     *root = btree_new_node();
-    fwrite(root, SIZE, 1, fp);
+    fwrite(*root, SIZE, 1, fp);
 }
 
 void btree_read_root(FILE *fp, node_t **root)
@@ -143,13 +150,13 @@ int btree_insert_nonfull(FILE *fp, node_t *x, int k)
 
     for (;;) {
 	if (btree_locate(x, k, &i))
-	    return 0;
+	    return 0;				/* key was already there */
 	if (x->ptr[0] == INVALID) {
 	    for (j = x->n++; j > i; j--)
-		x->key[j] = x->key[j - 1];
-	    x->key[i] = k;
-	    btree_disk_write(fp, x);
-	    return 1;
+		x->key[j] = x->key[j - 1];	/* shift right */
+	    x->key[i] = k;			/* insert key */
+	    btree_disk_write(fp, x);		/* write to disk */
+	    return 1;				/* done */
 	} else {
 	    y = btree_disk_read(fp, x->ptr[i]);
 	    if (y->n == FULL) {
@@ -176,6 +183,7 @@ int btree_insert(FILE *fp, node_t **root, int k)
     return btree_insert_nonfull(fp, *root, k);
 }
 
+#ifdef PRINTING
 void PrintTree(FILE *fp, node_t *x, int level)
 {
     int i;
@@ -191,29 +199,42 @@ void PrintTree(FILE *fp, node_t *x, int level)
 		PrintTree(fp, btree_disk_read(fp, x->ptr[i]), level + 1);
     }
 }
+#endif
 
 void Insert(FILE *fp, node_t **root)
 {
     int i;
 
+#ifdef PRINTING
     printf("insert: ");
+#endif
     if (scanf("%d", &i) == 1) {
-	printf("%d\n", (unsigned char)i);
+#ifdef PRINTING
+	printf("%d\n", i);
+#endif
 	btree_insert(fp, root, i);
     }
+#ifdef PRINTING
     PrintTree(fp, *root, 0);
+#endif
 }
 
 void Search(FILE *fp, node_t *root)
 {
     int i, pos;
 
+#ifdef PRINTING
     printf("search: ");
+#endif
     if (scanf("%d", &i) == 1) {
-	printf("%d\n", (unsigned char)i);
+#ifdef PRINTING
+	printf("%d\n", i);
+#endif
 	btree_search(fp, root, i, &pos);
     }
+#ifdef PRINTING
     PrintTree(fp, root, 0);
+#endif
 }
 
 int btree_delete(FILE *fp, node_t **root, int k);
@@ -222,15 +243,21 @@ void Delete(FILE *fp, node_t **root)
 {
     int i;
 
+#ifdef PRINTING
     printf("delete: ");
+#endif
     if (scanf("%d", &i) == 1) {
-	printf("%d\n", (unsigned char)i);
+#ifdef PRINTING
+	printf("%d\n", i);
+#endif
 	btree_delete(fp, root, i);
     }
+#ifdef PRINTING
     PrintTree(fp, *root, 0);
+#endif
 }
 
-int start_main(int argc, char *argv[])
+void my_main(int argc, char *argv[])
 {
     int ch;
     char rv;
@@ -239,12 +266,16 @@ int start_main(int argc, char *argv[])
 
     if (argc > 1 && !freopen(argv[1], "r", stdin)) {
 	fprintf(stderr, "failed to open the file '%s'.\n", argv[1]);
-	return 0;
+	return;
     }
     Init(&fp, &root);
+#ifdef PRINTING
     PrintTree(fp, root, 0);
+#endif
     for (;;) {
+#ifdef PRINTING
 	printf("I, D, S, Q: ");
+#endif
 	if (scanf("%c", &rv) == 1)
 	    switch (rv) {
 	    case 'i':
@@ -265,17 +296,29 @@ int start_main(int argc, char *argv[])
     }
 einde:
     Exit(fp, root);
-    return 0;
 }
+
+/*
+ * fatal terminates the application with an error message.
+ */
+#ifdef _MSC_VER
+void fatal(char *str)
+{
+    fflush(stdout);
+    fprintf(stderr, "fatal error: %s\n", str);
+    exit(EXIT_FAILURE);
+}
+#endif
 
 int main(int argc, char *argv[])
 {
-    int (* volatile m)(int, char **) = start_main;
+    void (* volatile m)(int, char **) = my_main;
 
     setbuf(stdout, 0);
-    bottom_of_stack = &argc;
+    bottom_of_stack = (char *)&argc;
     GC_INIT();
-    return (*m)(argc, argv);
+    (*m)(argc, argv);
+    return 0;
 }
 
 void btree_delete_from_leaf(FILE *fp, node_t *x, int i)
